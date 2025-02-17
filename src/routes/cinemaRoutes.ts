@@ -66,4 +66,54 @@ router.post(
   })
 );
 
+// Purchase the First Two Free Consecutive Seats (Concurrency Handling with Transaction)
+router.post(
+  "/:cinemaId/purchaseConsecutive",
+  apiHandler({
+    params: z.object({
+      seatCount: z.number().positive().min(2).max(2),
+    }),
+    handler: async ({ req, res, params }) => {
+      try {
+        const cinema = await Cinema.findById(req.params.cinemaId);
+        if (!cinema) {
+          res.status(404).json({ error: "Cinema not found" });
+          return;
+        }
+
+        const freeSeats = cinema.seats.filter((s) => !s.isBooked);
+        let consecutiveSeats: { number: number; isBooked: boolean }[] = [];
+
+        // Find two consecutive free seats
+        for (let i = 0; i < freeSeats.length - 1; i++) {
+          if (freeSeats[i].number + 1 === freeSeats[i + 1].number) {
+            consecutiveSeats = [freeSeats[i], freeSeats[i + 1]];
+            break;
+          }
+        }
+
+        if (consecutiveSeats.length < 2) {
+          res.status(400).json({ error: "No two consecutive seats available" });
+          return;
+        }
+
+        // Book the two consecutive seats
+        consecutiveSeats.forEach((seat) => {
+          seat.isBooked = true;
+        });
+        await cinema.save();
+
+        res.json({
+          message: "Two consecutive seats booked successfully",
+          seats: consecutiveSeats,
+        });
+      } catch (error) {
+        res
+          .status(500)
+          .json({ error: "An error occurred while booking seats" });
+      }
+    },
+  })
+);
+
 export default router;
